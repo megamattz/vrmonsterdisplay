@@ -1,3 +1,8 @@
+This is still a work in progress
+
+VR Monster Display
+
+This is a simple threejs app to show off the model I made and be able to view it in VR via the web. 
 
 References Used
 
