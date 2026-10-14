@@ -11,3 +11,4 @@ This model is loosly based on the one from the Blendermania Udemy Course 'The Ul
 It makes use of some of the base textures provided in that course. 
 
 HDRI From https://ambientcg.com/view?id=DayEnvironmentHDRI066
+Floor texture from https://ambientcg.com/view?id=Gravel043
