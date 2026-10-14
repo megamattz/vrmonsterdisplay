@@ -47,7 +47,7 @@ class WebXRWalkthrough {
 
 		this.Camera = new THREE.PerspectiveCamera(40, // field of view
 												aspectRatio, // aspect ratio 
-												1, // near view distance 
+												0.1, // near view distance 
 												2000); // far view distance
 
 												
@@ -169,31 +169,29 @@ class WebXRWalkthrough {
 
 		gltfLoader.load(modelUrl, ((gltf) => {
 
+			 console.log('scene children:', gltf.scene.children);
+    
+    gltf.scene.traverse((child) => {
+        console.log(child.name, child.type, child);
+    });
+	
 			const scale : number = 0.5;
 			const sinkAmount = -0.2; // how far into the floor. Better to be slightly into the floor rather then over it
 
 			// ----- Load the monster ---------------
-			const monsterMesh : THREE.Mesh = gltf.scene.children[0] as THREE.Mesh;
+			// This includes 2 models Monster + the eyes which are separate
+			const model : THREE.Group = gltf.scene as THREE.Group;
 
-			monsterMesh.scale.set(scale, scale, scale);
-			monsterMesh.updateMatrixWorld(true); // Apply the scale
+			model.scale.set(scale, scale, scale);
+			model.updateMatrixWorld(true); // Apply the scale
 
 			// Create a bounding box around the monster
-			const box = new THREE.Box3().setFromObject(monsterMesh);
+			const box = new THREE.Box3().setFromObject(model);
 
 			// Place the monster on the floor
-			monsterMesh.position.y = -box.min.y + sinkAmount;
+			model.position.y = -box.min.y + sinkAmount;
 
-			this.Scene.add(monsterMesh);
-
-			// ------ Load the eyes on the monster ----------
-			const eyeMesh : THREE.Mesh = gltf.scene.children[0] as THREE.Mesh;
-			eyeMesh.scale.set(scale, scale, scale);
-
-			// Eyes have the same offset as the monster itself so they appear in the eye socket
-			eyeMesh.position.y = monsterMesh.position.y; 
-
-			this.Scene.add(eyeMesh);
+			this.Scene.add(model);		
 		} ));
 	}
 }
