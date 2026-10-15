@@ -31,6 +31,8 @@ class WebXRWalkthrough {
 		this.SetupResizeHandler();
 
 		this.CreateHDRILighting();
+		this.CreateDirectionalLight();
+
 		this.CreateFloor();
 		this.CreateSceneObjects();
 
@@ -56,18 +58,39 @@ class WebXRWalkthrough {
 		
 	}
 
+	EnableShadows() : void {
+
+		this.Scene.traverse((child : THREE.Object3D<THREE.Object3DEventMap>) => {	
+
+					if (child instanceof THREE.Mesh) {	
+						
+						console.log(child.name);
+
+						child.receiveShadow = true;
+						child.castShadow = true;
+					}
+				});
+	}
+
 	SetupLoadingManager(): void {
 		this.LoadingManager = new THREE.LoadingManager();
 
 		this.LoadingManager.onError = function (url) {
 			console.warn('There was an error loading ' + url );
-		};
+		}
+
+		this.LoadingManager.onLoad = () => {
+			this.EnableShadows();
+		}
 	}
 
 	SetupRenderer() : void {
 		const canvas: HTMLCanvasElement = document.querySelector<HTMLCanvasElement>('.js-displaycanvas')!;
 		this.Renderer = new THREE.WebGLRenderer({canvas: canvas});
 		this.Renderer.setSize(window.innerWidth, window.innerHeight);
+
+		this.Renderer.shadowMap.enabled = true;
+		this.Renderer.shadowMap.type = THREE.PCFShadowMap;
 
 		this.Renderer.outputColorSpace = THREE.SRGBColorSpace;
 	}
@@ -131,9 +154,25 @@ class WebXRWalkthrough {
 			hdriTexture.mapping = THREE.EquirectangularReflectionMapping;
 
 			this.Scene.environment = hdriTexture;
+			this.Scene.environmentIntensity = 0.1;
+
 			//this.Scene.background = hdriTexture;
 		})
 
+	}
+
+	CreateDirectionalLight() : void {
+		const directionalLight : THREE.DirectionalLight = new THREE.DirectionalLight(0xFFFFFF, 2);
+
+		directionalLight.position.set(-8, 10, 4); // Left Side
+
+		directionalLight.castShadow = true;
+		directionalLight.shadow.bias = -0.0005;
+
+		directionalLight.target.position.set(0, 0, 0); // Point towards the monster
+		this.Scene.add(directionalLight.target);   // required so the target is updated
+
+		this.Scene.add(directionalLight);
 	}
 
 	SetupKeyboardMovement() : void {
@@ -168,13 +207,7 @@ class WebXRWalkthrough {
 		const modelUrl = `${this.BaseUrl}resources/creature/4LeggedCreatureExportWithEyes.glb`;
 
 		gltfLoader.load(modelUrl, ((gltf) => {
-
-			 console.log('scene children:', gltf.scene.children);
     
-    gltf.scene.traverse((child) => {
-        console.log(child.name, child.type, child);
-    });
-	
 			const scale : number = 0.5;
 			const sinkAmount = -0.2; // how far into the floor. Better to be slightly into the floor rather then over it
 
@@ -190,6 +223,8 @@ class WebXRWalkthrough {
 
 			// Place the monster on the floor
 			model.position.y = -box.min.y + sinkAmount;
+
+			model.castShadow = true;
 
 			this.Scene.add(model);		
 		} ));
