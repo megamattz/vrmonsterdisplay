@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
+import { VRButton } from 'three/addons/webxr/VRButton.js';
 
 import './style.css'
 
@@ -12,13 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
 class WebXRWalkthrough {
 
 	private Scene: THREE.Scene;
-	private Camera: THREE.PerspectiveCamera;
+	private DesktopCamera: THREE.PerspectiveCamera;
+	private VRCamera: THREE.PerspectiveCamera;
 	private Renderer: THREE.WebGLRenderer;
 	private Timer: THREE.Timer;
 	private LoadingManager: THREE.LoadingManager;
 	private BaseUrl: string;
 	private MoveSpeed: number = 1.2;
 	private keys: { [key: string]: boolean } = {};
+	private CameraRig: THREE.Group;
 
 	constructor() {
 		
@@ -26,7 +29,10 @@ class WebXRWalkthrough {
 		this.SetupLoadingManager();
 
 		this.SetupScene();
-		this.SetupCamera();
+
+		this.SetupDesktopCamera();
+		this.SetupVRCamera();
+
 		this.SetupRenderer();
 		this.SetupResizeHandler();
 
@@ -36,6 +42,8 @@ class WebXRWalkthrough {
 		this.CreateFloor();
 		this.CreateSceneObjects();
 
+		this.SetupXR();
+
 		this.SetupRenderTimer();
 		this.SetupKeyboardMovement();
 	}
@@ -44,17 +52,32 @@ class WebXRWalkthrough {
 		this.Scene = new THREE.Scene();
 	}
 
-	SetupCamera() : void {
+	SetupDesktopCamera() : void {
 		const aspectRatio: number = window.innerWidth / window.innerHeight;		
 
-		this.Camera = new THREE.PerspectiveCamera(40, // field of view
+		this.DesktopCamera = new THREE.PerspectiveCamera(40, // field of view
 												aspectRatio, // aspect ratio 
 												0.1, // near view distance 
 												2000); // far view distance
 
 												
 
-		this.Camera.position.set(0, 1.5, 5);
+		this.DesktopCamera.position.set(0, 1.5, 5);
+		
+	}
+
+	SetupVRCamera() : void {
+
+		const aspectRatio: number = window.innerWidth / window.innerHeight;		
+
+		this.VRCamera = new THREE.PerspectiveCamera(40, // field of view
+												aspectRatio, // aspect ratio 
+												0.1, // near view distance 
+												2000); // far view distance
+
+												
+
+		this.DesktopCamera.position.set(0, 1.5, 5);
 		
 	}
 
@@ -62,9 +85,7 @@ class WebXRWalkthrough {
 
 		this.Scene.traverse((child : THREE.Object3D<THREE.Object3DEventMap>) => {	
 
-					if (child instanceof THREE.Mesh) {	
-						
-						console.log(child.name);
+					if (child instanceof THREE.Mesh) {
 
 						child.receiveShadow = true;
 						child.castShadow = true;
@@ -100,8 +121,8 @@ class WebXRWalkthrough {
 		window.addEventListener('resize', () => {
 
 			const aspectRatio: number = window.innerWidth / window.innerHeight;			
-			this.Camera.aspect =  aspectRatio;
-			this.Camera.updateProjectionMatrix();
+			this.DesktopCamera.aspect =  aspectRatio;
+			this.DesktopCamera.updateProjectionMatrix();
 
 			this.Renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 			this.Renderer.setSize(window.innerWidth, window.innerHeight);
@@ -122,27 +143,35 @@ class WebXRWalkthrough {
 			const amountToMove = this.MoveSpeed * deltaTime;
 
 			if (this.keys['w'] || this.keys['W']) {
-				this.Camera.position.z = this.Camera.position.z - (amountToMove);
+				this.DesktopCamera.position.z = this.DesktopCamera.position.z - (amountToMove);
 			}
 
 			if (this.keys['S'] || this.keys['s']) {
-				this.Camera.position.z = this.Camera.position.z + (amountToMove);
+				this.DesktopCamera.position.z = this.DesktopCamera.position.z + (amountToMove);
 			}
 
 			if (this.keys['D'] || this.keys['d']) {
-				this.Camera.position.x = this.Camera.position.x + (amountToMove);
+				this.DesktopCamera.position.x = this.DesktopCamera.position.x + (amountToMove);
 			}
 
 			if (this.keys['A'] || this.keys['a']) {
-				this.Camera.position.x = this.Camera.position.x - (amountToMove);
+				this.DesktopCamera.position.x = this.DesktopCamera.position.x - (amountToMove);
 			}
 
-			this.Renderer.render(this.Scene, this.Camera);
+			// VR Mode uses a different camera so it can keep a different position
+			if (this.Renderer.xr.isPresenting) {
+				this.Renderer.render(this.Scene, this.VRCamera);
+			}
+			else
+			{
+				this.Renderer.render(this.Scene, this.DesktopCamera);
+			}
+			
 		})
 	}
 
 	AnimateLoop() : void {
-		this.Renderer.render(this.Scene, this.Camera);
+		this.Renderer.render(this.Scene, this.DesktopCamera);
 	}
 
 	CreateHDRILighting() : void {
@@ -167,7 +196,7 @@ class WebXRWalkthrough {
 		directionalLight.position.set(-8, 10, 4); // Left Side
 
 		directionalLight.castShadow = true;
-		directionalLight.shadow.bias = -0.0005;
+		directionalLight.shadow.bias = -0.0005; // Needed to avoid artifacts with shadows casting on themself
 
 		directionalLight.target.position.set(0, 0, 0); // Point towards the monster
 		this.Scene.add(directionalLight.target);   // required so the target is updated
@@ -228,5 +257,40 @@ class WebXRWalkthrough {
 
 			this.Scene.add(model);		
 		} ));
+	}
+
+	SetupXR() : void {
+
+		this.Renderer.xr.enabled = true;
+
+		document.body.appendChild(VRButton.createButton(this.Renderer));
+
+		// Create a rig which will control the camera position
+		this.CameraRig = new THREE.Group();
+		this.CameraRig.add(this.VRCamera);
+		this.Scene.add(this.CameraRig);
+
+		this.Renderer.xr.addEventListener('sessionstart', () => {
+			this.VRSessionStart();
+		});
+
+		this.Renderer.xr.addEventListener('sessionend', () => {
+			this.VRSessionEnd();
+		});
+	}
+
+	VRSessionStart() : void {
+		console.log('VR Starting')
+
+		// Initial VR Camera position set something that looks good initially
+		this.CameraRig.position.set(-1, 1, 1);
+
+		// Rotate so it's facing the create initially
+		this.CameraRig.rotation.y = Math.PI; 
+	}
+
+	VRSessionEnd() : void {
+
+		console.log('VR Ending')
 	}
 }
