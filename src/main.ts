@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { VRButton } from 'three/addons/webxr/VRButton.js';
-
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import './style.css'
 
+type XRControllerEvent = THREE.Event & { data: XRInputSource };
 
 document.addEventListener('DOMContentLoaded', () => {
 	new WebXRWalkthrough();
@@ -43,6 +44,7 @@ class WebXRWalkthrough {
 		this.CreateSceneObjects();
 
 		this.SetupXR();
+		this.SetupVRControllers();
 
 		this.SetupRenderTimer();
 		this.SetupKeyboardMovement();
@@ -75,10 +77,6 @@ class WebXRWalkthrough {
 												0.1, // near view distance 
 												2000); // far view distance
 
-												
-
-		this.DesktopCamera.position.set(0, 1.5, 5);
-		
 	}
 
 	EnableShadows() : void {
@@ -278,11 +276,6 @@ class WebXRWalkthrough {
 
 		document.body.appendChild(VRButton.createButton(this.Renderer));
 
-		// Create a rig which will control the camera position
-		this.CameraRig = new THREE.Group();
-		this.CameraRig.add(this.VRCamera);
-		this.Scene.add(this.CameraRig);
-
 		this.Renderer.xr.addEventListener('sessionstart', () => {
 			this.VRSessionStart();
 		});
@@ -292,8 +285,50 @@ class WebXRWalkthrough {
 		});
 	}
 
+	SetupVRControllers() : void {
+		const controllerModelFactory: XRControllerModelFactory = new XRControllerModelFactory();
+
+		// Create a rig which will control the camera position
+		this.CameraRig = new THREE.Group();
+		this.CameraRig.add(this.VRCamera);
+		this.Scene.add(this.CameraRig);
+
+		// This is for the controller. Origin  Point is the tip of the controller
+		const controllers: THREE.XRTargetRaySpace[] = [];
+
+		// This is for holding items and rendering the phyiscal controller. Origin  point if the center of the user's hand
+		const controllerGrips: THREE.XRGripSpace[] = [];
+
+		// Load the controller info from the renderer
+		for (let n = 0; n < 2; n++) {
+
+			// Setup the controller
+			const controller : THREE.XRTargetRaySpace = this.Renderer.xr.getController(n);
+  			controllers.push(controller);			
+
+			controller.addEventListener('connected', (event) => {
+				this.ControllerConnected(event as XRControllerEvent);
+			})
+
+			// Setup the controller grip
+			const controllerGrip : THREE.XRGripSpace = this.Renderer.xr.getControllerGrip(n);			
+  			controllerGrips.push(controllerGrip);			
+
+			// Need to add these to the camera rig so it moves with it
+			this.CameraRig.add(controller);
+       		this.CameraRig.add(controllerGrip);
+
+			// Setup the model to render the controller grip
+			const model: THREE.Object3D = controllerModelFactory.createControllerModel(controllerGrip);
+			controllerGrip.add(model);
+		}
+	}
+
+	ControllerConnected(event: XRControllerEvent) : void {
+		console.log(event.data);
+	}
+
 	VRSessionStart() : void {
-		console.log('VR Starting')
 
 		// Initial VR Camera position set something that looks good initially
 		this.CameraRig.position.set(-1, 1, 1);
