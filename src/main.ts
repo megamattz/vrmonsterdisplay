@@ -139,24 +139,7 @@ class WebXRWalkthrough {
 			this.Timer.update(timestamp);
 
 			const deltaTime = this.Timer.getDelta();
-
-			const amountToMove = this.MoveSpeed * deltaTime;
-
-			if (this.keys['w'] || this.keys['W']) {
-				this.DesktopCamera.position.z = this.DesktopCamera.position.z - (amountToMove);
-			}
-
-			if (this.keys['S'] || this.keys['s']) {
-				this.DesktopCamera.position.z = this.DesktopCamera.position.z + (amountToMove);
-			}
-
-			if (this.keys['D'] || this.keys['d']) {
-				this.DesktopCamera.position.x = this.DesktopCamera.position.x + (amountToMove);
-			}
-
-			if (this.keys['A'] || this.keys['a']) {
-				this.DesktopCamera.position.x = this.DesktopCamera.position.x - (amountToMove);
-			}
+			this.MoveAndRotateDesktopCamera(deltaTime);
 
 			// VR Mode uses a different camera so it can keep a different position
 			if (this.Renderer.xr.isPresenting) {
@@ -168,6 +151,39 @@ class WebXRWalkthrough {
 			}
 			
 		})
+	}
+
+	MoveAndRotateDesktopCamera(deltaTime: number): void {
+		// Rotation via arrow keys
+		const rotationSpeed = 1.5; 
+    	const amountToRotate = rotationSpeed * deltaTime;
+
+		if (this.keys['ArrowLeft']) {
+			 this.DesktopCamera.rotation.y += amountToRotate;
+		}
+
+		if (this.keys['ArrowRight']) {
+			 this.DesktopCamera.rotation.y -= amountToRotate;
+		}
+
+		// Movement via WASD keys
+		const amountToMove = this.MoveSpeed * deltaTime;
+
+		if (this.keys['w'] || this.keys['W']) {
+			this.DesktopCamera.translateZ(-amountToMove);			
+		}
+
+		if (this.keys['S'] || this.keys['s']) {
+			this.DesktopCamera.translateZ(amountToMove);
+		}
+
+		if (this.keys['D'] || this.keys['d']) {
+			this.DesktopCamera.translateX(amountToMove);
+		}
+
+		if (this.keys['A'] || this.keys['a']) {
+			this.DesktopCamera.translateX(-amountToMove);
+		}		
 	}
 
 	AnimateLoop() : void {
@@ -185,6 +201,7 @@ class WebXRWalkthrough {
 			this.Scene.environment = hdriTexture;
 			this.Scene.environmentIntensity = 0.1;
 
+			// Can uncomment this to see the background 
 			//this.Scene.background = hdriTexture;
 		})
 
@@ -217,15 +234,11 @@ class WebXRWalkthrough {
 	CreateFloor() : void {			
 
 		const gltfLoader: GLTFLoader = new GLTFLoader(this.LoadingManager);
-
 		const floorUrl = `${this.BaseUrl}resources/floor/circle.glb`;
 
 		gltfLoader.load(floorUrl, (gltf) => {
-
-			const floorMesh = gltf.scene.children[0] as THREE.Mesh;
-		
+			const floorMesh = gltf.scene.children[0] as THREE.Mesh;		
 			this.Scene.add(floorMesh);
-
 		});
 	}
 
